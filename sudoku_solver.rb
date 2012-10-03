@@ -2,7 +2,7 @@
 
 
 class Tile
-  attr_reader :value, :value_mask
+  attr_reader :value, :value_mask, :x, :y
   def initialize
     # initialize puzzle data structure
     # all values are 0x1 f f -> the potential values they can be
@@ -49,6 +49,13 @@ class Tile
       end
     end
   end
+
+  def cost_to_place(val)
+    row_cost(val)
+    col_cost(val)
+    section_cot(val)
+  end
+
   # take care of all logic to place a value at a place
   def mask_constraints(mask)
     puts "masking constraints #{mask.to_s(16)}"
@@ -104,12 +111,14 @@ end
 
 
 def panic(p)
+  puts "panic!"
   print_puzz(p)
   exit
 end
 
 # copy all values of "from" to "to"
-def copy_puzz(from, to)
+def copy_puzz(from)
+  to = []
   from.each do |row|
     new_row = []
     to << new_row
@@ -117,6 +126,7 @@ def copy_puzz(from, to)
       new_row << tile.copy(to)
     end
   end
+  to
 end
 
 # print the puzzle's status stuff
@@ -130,18 +140,32 @@ def print_puzz(puzz)
 end
 
 # we need to choose a value to "set" - we need to remember it and DFS our way through t puzzle
-# choose values which constrain the SMALLEST number of other cells
-def solve_under_specified_puzz(puzz)
+# We prefer placing values which:
+# 1. Get us closer to the solution
+#   solved bt doing DFS
+# 2. Have the most constraints on them
+#   prefer to place numbers in tiles with very few potential values
+# 3. Prefer to choose values which constrain others least
+# 
+# on preference, we'll count the number of constraints placing a particular value would cause and choose lowest value
+def solve(puzz)
   puts "choose a good candidate to set the value on"
+  candidate_values = [] # pairs: [value,cost]
+  stack = [] # stack of tile states to solve from
+  # examine candidates
   puzz.each_index do |y|
     row = puzz[y]
     row.each_index do |x|
       tile = puzz[y][x]
-      if tile.value_mask > 0
-        # find highest allowable value
-        val = Math.log2(tile.value_mask).floor.to_i
-        puts "Putting #{val + 1} (allow #{puzz[y][x].value_mask}) at (#{x},#{y})"
-        puzz[y][x].value = val + 1
+      cur_mask = tile.value_mask
+      cur_val = 1
+      while cur_mask > 0 do
+        if cur_val & 1 > 0
+          cur_cost = tile.cost_to_place(cur_val)
+          candidate_values << [cur_val, cur_cost]
+        end
+        cur_val = cur_val+1
+        cur_mask = cur_mask >> 1
       end
     end
   end
@@ -183,6 +207,6 @@ File.open('puzzle.sudoku').each_line do |s|
   y = y + 1
 end
 
-solve_under_specified_puzz(puzzle)
+solve(puzzle)
 print_puzz(puzzle)
 
