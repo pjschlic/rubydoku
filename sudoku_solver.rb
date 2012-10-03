@@ -9,6 +9,14 @@ class Tile
     # 1-9 each represented by a bit
     @value_mask = 0x1ff
   end
+	def valid?
+		neighbors do |neighbor|
+			if neighbor.value == @value
+				return false
+			end
+		end
+		return true
+	end
   def set(puzzle,x,y)
     @puzzle=puzzle
     @x=x
@@ -129,6 +137,17 @@ end
 def panic(p)
   puts "panic!"
   print_puzz(p)
+	success = true
+	p.each do |row|
+		row.each do |tile|
+			success = success && tile.valid?
+		end
+	end
+	if success
+		puts "success!!!!"
+	else
+		puts "error!!!!!"
+	end
   exit
 end
 
@@ -194,17 +213,19 @@ def solve(puzz)
 	if candidate_values.length == 0
 		success(puzz)
 	else
-		# puts "choose a good candidate to set the value on"
-		candidate_values.sort! {|one,two| one[2] <=> two[2] }
-		# puts candidate_values.inspect
-		next_puz = copy_puzz(puzz)
-		chosen = candidate_values.shift
-		begin
-			next_puz[chosen.y][chosen.x].value = chosen[1]
-			solve(next_puzz)
-		rescue
-			puzz[chosen[0].y][chosen[0].x].mask(~(1<<(chosen[1]-1)))
-			solve(next_puz)
+		while candidate_values.length > 0 do
+			# puts "choose a good candidate to set the value on"
+			candidate_values.sort! {|one,two| one[2] <=> two[2] }
+			# puts candidate_values.inspect
+			next_puz = copy_puzz(puzz)
+			chosen = candidate_values.shift
+			begin
+				next_puz[chosen.y][chosen.x].value = chosen[1]
+				solve(next_puzz)
+			rescue
+				puts "learned that #{chosen[1]} does NOT go at #{chosen[0].x},#{chosen[0].y}"
+				puzz[chosen[0].y][chosen[0].x].mask(~(1<<(chosen[1]-1)))
+			end
 		end
 	end
 	panic(puzz)
