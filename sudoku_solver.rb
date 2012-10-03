@@ -155,10 +155,6 @@ File.open('puzzle.sudoku').each_line do |s|
 	y = y + 1
 end
 
-print_puzz(puzzle)
-
 solve_under_specified_puzz(puzzle)
-
-
 print_puzz(puzzle)
 
