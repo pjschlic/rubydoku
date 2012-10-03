@@ -140,7 +140,7 @@ end
 
 y = 0
 File.open('puzzle.sudoku').each_line do |s|
-  puts s
+	puts s
 	x = 0
 	s.split(" ").each do |c|
 		n = c.to_i
