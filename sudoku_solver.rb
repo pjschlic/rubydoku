@@ -1,154 +1,182 @@
 #!/usr/bin/env ruby
 
-puzzle = []
-# initialize puzzle data structure
-# all values are 0x1 f f -> the potential values they can be
-# 1-9 each represented by a bit
-(1..9).each do |row|
-  row = []
-  puzzle << row
-  (1..9).each do |col|
-    row << 0x1ff
+
+class Tile
+  attr_reader :value, :value_mask
+  def initialize
+    # initialize puzzle data structure
+    # all values are 0x1 f f -> the potential values they can be
+    # 1-9 each represented by a bit
+    @value_mask = 0x1ff
   end
-  puts "new row of #{row.length}"
+  def set(puzzle,x,y)
+    @puzzle=puzzle
+    @x=x
+    @y=y
+  end
+  def value=(value)
+    # propogate the value
+    if @value&value == 0
+      puts "ERROR INVALID PUZZLE: #{value} being set at (#{@x},#{@y}) which is #{@value} with mask #{@value_mask}"
+      panic(@puzzle)
+    end
+    if value != @value
+      puts "placing value #{value} at #{@x},#{@y}"
+      @value=value
+      self.mask(0x0)
+      mask_constraints(~(1 << (@value-1)))
+    end
+  end
+  def mask(mask)
+    if @value_mask == 0
+      return
+    end
+    if mask == 0
+      # our value was found, we are icing our old mask
+      @value_mask = 0
+    else
+      new_mask = @value_mask & mask
+      if @value_mask == 0
+        puts "ERROR INVALID PUZZLE: 0x#{mask.to_s(16)} being applied at (#{@x},#{@y}) which is #{@value_mask}"
+        panic(@puzzle)
+      end
+      if new_mask != @value_mask
+        @value_mask = new_mask
+        if Math.log2(@value_mask).floor == Math.log2(@value_mask) # if only one value is set
+          puts "new value found through mask #{Math.log2(@value_mask).to_i+1} at #{@x},#{@y}"
+          self.value = Math.log2(@value_mask).to_i+1
+        end
+      end
+    end
+  end
+  # take care of all logic to place a value at a place
+  def mask_constraints(mask)
+    puts "masking constraints #{mask.to_s(16)}"
+    mask_row(mask)
+    mask_col(mask)
+    mask_section(mask)
+  end
+
+  # this value is illegal for all other items in this row
+  def mask_row(mask)
+    (0..8).each do |cur_x|
+      if cur_x != @x
+        cur_tile = @puzzle[@y][cur_x]
+        cur_tile.mask(mask)
+      end
+    end
+  end
+
+  # this value is illegal for all other items in this (super group?) 3x3 grid-area
+  def mask_section(mask)
+    top_left_x = @x-(@x%3)
+    top_left_y = @y-(@y%3)
+    (0..2).each do |offset_x|
+      (0..2).each do |offset_y|
+        cur_x = top_left_x + offset_x
+        cur_y = top_left_y + offset_y
+        if cur_x != @x && cur_y != @y
+          cur_tile = @puzzle[cur_y][cur_x]
+          cur_tile.mask(mask)
+        end
+      end
+    end
+  end
+
+  # this value is illegal for all other items in this col
+  def mask_col(mask)
+    (0..8).each do |cur_y|
+      if cur_y != @y
+        cur_tile = @puzzle[cur_y][@x]
+        cur_tile.mask(mask)
+      end
+    end
+  end
+
+  def copy(new_puzzle)
+    t = Tile.new
+    t.set(new_puzzle,@x,@y)
+    t.value = self.value
+    t.mask(self.value_mask)
+    t
+  end
 end
-puts "total of #{puzzle.length} rows"
+
 
 def panic(p)
-  p.each do |r|
-    r.each do |c|
-      print "#{c} "
-    end
-    puts ""
-  end
+  print_puzz(p)
   exit
+end
+
+# copy all values of "from" to "to"
+def copy_puzz(from, to)
+  from.each do |row|
+    new_row = []
+    to << new_row
+    row.each do |tile|
+      new_row << tile.copy(to)
+    end
+  end
 end
 
 # print the puzzle's status stuff
 def print_puzz(puzz)
   puzz.each do |row|
     row.each do |tile|
-      print "#{Math.log2(tile).to_i + 1} "
+      print "#{(!tile.value.nil? && tile.value > 0) ? tile.value : '.'} "
     end
     puts ""
   end
 end
 
-# If the puzzle is UNDER specified, start to choose some random valid values
+# we need to choose a value to "set" - we need to remember it and DFS our way through t puzzle
+# choose values which constrain the SMALLEST number of other cells
 def solve_under_specified_puzz(puzz)
-  puts "under-specified puzzle?"
+  puts "choose a good candidate to set the value on"
   puzz.each_index do |y|
     row = puzz[y]
     row.each_index do |x|
-      val = Math.log2(puzz[y][x])
-      if val > 0 && val < 9 && val != val.ceil
+      tile = puzz[y][x]
+      if tile.value_mask > 0
         # find highest allowable value
-        puts "Putting #{val.floor.to_i + 1} (allow #{puzz[y][x]}) at (#{x},#{y})"
-        place_val(puzz,x,y,(1<<(val.floor.to_i)))
+        val = Math.log2(tile.value_mask).floor.to_i
+        puts "Putting #{val + 1} (allow #{puzz[y][x].value_mask}) at (#{x},#{y})"
+        puzz[y][x].value = val + 1
       end
     end
   end
 end
 
-# this value is illegal for all other items in this row
-def set_row(puz, x, y, val)
-  (0..8).each do |cur_x|
-    if cur_x != x
-      old = puz[y][cur_x]
-      new = old&(~val)
-      if new != puz[y][cur_x] # if new assignment
-        if new == 0
-          puts "ERROR!!!! ILLEGAL BOARD syncing row at #{cur_x},#{y} | was #{old}"
-          panic(puz)
-        else
-          if Math.log2(new).floor == Math.log2(new) # if found final value, propagate
-            puts "propogate #{new} at (#{cur_x},#{y})"
-            place_val(puz,cur_x,y,new)
-          else
-            puz[y][cur_x] = new
-          end
-        end
-      end
-    end
+
+#Array.new(9,Array.new(9,Tile.new))
+puzzle = []
+(0..8).each do |y|
+  row = []
+  puzzle << row
+  (0..8).each do |x|
+    row << Tile.new
   end
 end
-
-# this value is illegal for all other items in this col
-def set_col(puz, x, y, val)
-  (0..8).each do |cur_y|
-    if cur_y != y
-      old = puz[cur_y][x]
-      new = puz[cur_y][x]&(~val)
-      if new != puz[cur_y][x]
-        if new == 0
-          puts "ERROR!!!! ILLEGAL BOARD syncing column at #{x},#{cur_y} | was #{old}"
-          panic(puz)
-        else
-          if Math.log2(new).floor == Math.log2(new)
-            puts "propogate #{new} at (#{x},#{cur_y})"
-            place_val(puz,x,cur_y,new)
-          else
-            puz[cur_y][x] = new
-          end
-        end
-      end
-    end
+(0..8).each do |y|
+  (0..8).each do |x|
+    puzzle[y][x].set(puzzle,x,y) # set this tile's location in the grand scheme of things
   end
+  puts "row of length #{puzzle[y].length}"
 end
-
-# this value is illegal for all other items in this (super group?) 3x3 grid-area
-def set_section(puz, x, y, val)
-  top_left_x = x-(x%3)
-  top_left_y = y-(y%3)
-  (0..2).each do |offset_x|
-    (0..2).each do |offset_y|
-      cur_x = top_left_x + offset_x
-      cur_y = top_left_y + offset_y
-      if cur_x != x && cur_y != y
-        new = puz[cur_y][cur_x]&(~val)
-        if new != puz[cur_y][cur_x]
-          if new == 0
-            puts "ERROR!!!! ILLEGAL BOARD syncing block at #{cur_x},#{cur_y}"
-            panic(puz)
-          else
-            if Math.log2(new).floor == Math.log2(new)
-              puts "propogate #{new} at (#{cur_x},#{cur_y})"
-              place_val(puz,cur_x,cur_y,new)
-            else
-              puz[cur_y][cur_x] = new
-            end
-          end
-        end
-      end
-    end
-  end
-end
-
-# take care of all logic to place a value at a place
-def place_val(puz,x,y,val)
-  if puz[y][x]&val == 0
-    puts "ERROR INVALID PUZZLE: #{val} being placed at (#{x},#{y}) which is #{puz[y][x]}"
-    panic(puzzle)
-  end
-  if puz[y][x] != val
-    puz[y][x] = val
-    set_row(puz,x,y,val)
-    set_col(puz,x,y,val)
-    set_section(puz,x,y,val)
-  end
-end
-
+puts "total of #{puzzle.length} rows"
+print_puzz(puzzle)
 y = 0
+puts "starting puzzle:"
 File.open('puzzle.sudoku').each_line do |s|
   puts s
   x = 0
   s.split(" ").each do |c|
+    t=puzzle[y][x]
     n = c.to_i
     puts "#{n} at #{x},#{y}"
     if n > 0 && n < 10
-      val = 1 << (n-1)
-      puts "#{n} at (#{x},#{y}) => #{val}"
-      place_val(puzzle,x,y,val)
+      puts "#{n} at (#{x},#{y}) => #{n}"
+      puzzle[y][x].value = n
     end
     x = x + 1
   end
