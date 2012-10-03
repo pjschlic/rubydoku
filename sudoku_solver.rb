@@ -1,3 +1,5 @@
+#!/usr/bin/env ruby
+
 puzzle = []
 # initialize puzzle data structure
 # all values are 0x1 f f -> the potential values they can be
@@ -7,10 +9,10 @@ puzzle = []
 	puzzle << row
 	(1..9).each do |col|
 		row << 0x1ff
-		puts row.length
 	end
+	puts "new row of #{row.length}"
 end
-
+puts "total of #{puzzle.length} rows"
 
 # print the puzzle's status stuff
 def print_puzz(puzz)
@@ -64,9 +66,14 @@ File.open('puzzle.sudoku').each_line do |s|
 	x = 0
 	s.split(" ").each do |c|
 		n = c.to_i
+		puts "#{n} at #{x},#{y}"
 		if n > 0 && n < 10
-			puts "#{n} at (#{x},#{y})"
 			val = 1 << (n-1)
+			puts "#{n} at (#{x},#{y}) => #{val}"
+			if puzzle[y][x]&val == 0
+				puts "ERROR INVALID PUZZLE #{val} being placed at (#{x},#{y}) which is #{puzzle[y][x]}"
+			end
+			puzzle[y][x] = val
 			set_row(puzzle,x,y,val)
 			set_col(puzzle,x,y,val)
 			set_section(puzzle,x,y,val)
