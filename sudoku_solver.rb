@@ -20,6 +20,21 @@ puzzle.each do |row|
 	puts ""
 end
 
-File.open('puzzle.sudoku').each_line{ |s|
+def set_row(puz, x, y, val)
+end
+
+y = 0
+File.open('puzzle.sudoku').each_line do |s|
   puts s
-}
+	x = 0
+	s.split(" ").each do |c|
+		n = c.to_i
+		if n > 0 && n < 10
+			puts "#{n} at (#{x},#{y})"
+			val = 1 << n
+			set_row(puzzle,x,y,val)
+		end
+		x = x + 1
+	end
+	y = y + 1
+end
