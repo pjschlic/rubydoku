@@ -18,15 +18,23 @@ class Tile
     # propogate the value
     if @value&value == 0
       puts "ERROR INVALID PUZZLE: #{value} being set at (#{@x},#{@y}) which is #{@value} with mask #{@value_mask}"
-      panic(@puzzle)
+      raise
     end
     if value != @value
       puts "placing value #{value} at #{@x},#{@y}"
       @value=value
       self.mask(0x0)
-      mask_constraints(~(1 << (@value-1)))
+			neighbors do |neighbor|
+				neighbor.mask(~(1 << (@value-1)))
+			end
+      # mask_constraints(~(1 << (@value-1)))
     end
   end
+	def neighbors
+		yield_row {|tile| yield(tile)}
+		yield_col {|tile| yield(tile)}
+		yield_section {|tile| yield(tile)}
+	end
   def mask(mask)
     if @value_mask == 0
       return
@@ -38,7 +46,7 @@ class Tile
       new_mask = @value_mask & mask
       if @value_mask == 0
         puts "ERROR INVALID PUZZLE: 0x#{mask.to_s(16)} being applied at (#{@x},#{@y}) which is #{@value_mask}"
-        panic(@puzzle)
+				raise
       end
       if new_mask != @value_mask
         @value_mask = new_mask
@@ -51,62 +59,70 @@ class Tile
   end
 
   def cost_to_place(val)
-    row_cost(val)
-    col_cost(val)
-    section_cot(val)
-  end
-
-  # take care of all logic to place a value at a place
-  def mask_constraints(mask)
-    puts "masking constraints #{mask.to_s(16)}"
-    mask_row(mask)
-    mask_col(mask)
-    mask_section(mask)
+		cost = 0
+		cur_mask = @value_mask
+		while cur_mask > 0 # count my options
+			cur_mask = cur_mask >> 1
+			cost = cost+1
+		end
+		neighbors do |neighbor| # count the options my neighbors would lose if I become this
+			if (1 << (val-1)) & neighbor.value_mask > 0
+				cost = cost + 1
+			end
+		end
+		return cost
   end
 
   # this value is illegal for all other items in this row
-  def mask_row(mask)
+  def yield_row
     (0..8).each do |cur_x|
       if cur_x != @x
-        cur_tile = @puzzle[@y][cur_x]
-        cur_tile.mask(mask)
+				cur_tile = @puzzle[@y][cur_x]
+				yield(cur_tile)
       end
     end
   end
 
   # this value is illegal for all other items in this (super group?) 3x3 grid-area
-  def mask_section(mask)
+  def yield_section
     top_left_x = @x-(@x%3)
     top_left_y = @y-(@y%3)
     (0..2).each do |offset_x|
       (0..2).each do |offset_y|
         cur_x = top_left_x + offset_x
         cur_y = top_left_y + offset_y
-        if cur_x != @x && cur_y != @y
+        if cur_x != @x && cur_y != @y # already got row/col/self
           cur_tile = @puzzle[cur_y][cur_x]
-          cur_tile.mask(mask)
+					yield(cur_tile)
         end
       end
     end
   end
 
   # this value is illegal for all other items in this col
-  def mask_col(mask)
+  def yield_col
     (0..8).each do |cur_y|
       if cur_y != @y
         cur_tile = @puzzle[cur_y][@x]
-        cur_tile.mask(mask)
+				yield(cur_tile)
       end
     end
   end
 
   def copy(new_puzzle)
-    t = Tile.new
+		t = Tile.new
     t.set(new_puzzle,@x,@y)
-    t.value = self.value
-    t.mask(self.value_mask)
+    t.set_value(@value)
+    t.set_mask(@value_mask)
     t
   end
+	# create some methods for copy which don't do propogation/etc
+	def set_value(v)
+		@value = v
+	end
+	def set_mask(mask)
+		@value_mask = mask
+	end
 end
 
 
@@ -114,6 +130,12 @@ def panic(p)
   puts "panic!"
   print_puzz(p)
   exit
+end
+
+def success(p)
+	puts "success"
+	print_puzz(p)
+	exit
 end
 
 # copy all values of "from" to "to"
@@ -149,9 +171,7 @@ end
 # 
 # on preference, we'll count the number of constraints placing a particular value would cause and choose lowest value
 def solve(puzz)
-  puts "choose a good candidate to set the value on"
-  candidate_values = [] # pairs: [value,cost]
-  stack = [] # stack of tile states to solve from
+  candidate_values = [] # pairs: [tile,value,cost]
   # examine candidates
   puzz.each_index do |y|
     row = puzz[y]
@@ -162,13 +182,32 @@ def solve(puzz)
       while cur_mask > 0 do
         if cur_val & 1 > 0
           cur_cost = tile.cost_to_place(cur_val)
-          candidate_values << [cur_val, cur_cost]
+          candidate_values << [tile,cur_val,cur_cost]
+					# puts "cost of #{cur_val} => (#{tile.x},#{tile.y}) is #{cur_cost}"
         end
         cur_val = cur_val+1
         cur_mask = cur_mask >> 1
       end
     end
   end
+	# puts candidate_values.inspect
+	if candidate_values.length == 0
+		success(puzz)
+	else
+		# puts "choose a good candidate to set the value on"
+		candidate_values.sort! {|one,two| one[2] <=> two[2] }
+		# puts candidate_values.inspect
+		next_puz = copy_puzz(puzz)
+		chosen = candidate_values.shift
+		begin
+			next_puz[chosen.y][chosen.x].value = chosen[1]
+			solve(next_puzz)
+		rescue
+			puzz[chosen[0].y][chosen[0].x].mask(~(1<<(chosen[1]-1)))
+			solve(next_puz)
+		end
+	end
+	panic(puzz)
 end
 
 
@@ -200,7 +239,11 @@ File.open('puzzle.sudoku').each_line do |s|
     puts "#{n} at #{x},#{y}"
     if n > 0 && n < 10
       puts "#{n} at (#{x},#{y}) => #{n}"
-      puzzle[y][x].value = n
+			begin
+				puzzle[y][x].value = n
+			rescue
+				panic(puzzle)
+			end
     end
     x = x + 1
   end
@@ -208,5 +251,4 @@ File.open('puzzle.sudoku').each_line do |s|
 end
 
 solve(puzzle)
-print_puzz(puzzle)
 
