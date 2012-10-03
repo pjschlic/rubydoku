@@ -53,10 +53,20 @@ end
 # this value is illegal for all other items in this row
 def set_row(puz, x, y, val)
 	(0..8).each do |cur_x|
-		puz[y][cur_x] = puz[y][cur_x]&(~val) unless cur_x == x
-		if puz[y][cur_x] == 0
-			puts "ERROR!!!! ILLEGAL BOARD syncing row at #{cur_x},#{y}"
-			panic(puz)
+		if cur_x != x
+			old = puz[y][cur_x]
+			new = old&(~val)
+			if new != puz[y][cur_x] # if new assignment
+				puz[y][cur_x] = new
+				if puz[y][cur_x] == 0
+					puts "ERROR!!!! ILLEGAL BOARD syncing row at #{cur_x},#{y}"
+					panic(puz)
+				else
+					if Math.log2(new).floor == Math.log2(new) # if found final value, propagate
+						place_val(puz,cur_x,y,new)
+					end
+				end
+			end
 		end
 	end
 end
@@ -64,10 +74,19 @@ end
 # this value is illegal for all other items in this col
 def set_col(puz, x, y, val)
 	(0..8).each do |cur_y|
-		puz[cur_y][x] = puz[cur_y][x]&(~val) unless cur_y == y
-		if puz[cur_y][x] == 0
-			puts "ERROR!!!! ILLEGAL BOARD syncing column at #{x},#{cur_y}"
-			panic(puz)
+		if cur_y != y
+			new = puz[cur_y][x]&(~val)
+			if new != puz[cur_y][x]
+				puz[cur_y][x] = new
+				if puz[cur_y][x] == 0
+					puts "ERROR!!!! ILLEGAL BOARD syncing column at #{x},#{cur_y}"
+					panic(puz)
+				else
+					if Math.log2(new).floor == Math.log2(new)
+						place_val(puz,x,cur_y,new)
+					end
+				end
+			end
 		end
 	end
 end
@@ -80,10 +99,19 @@ def set_section(puz, x, y, val)
 		(0..2).each do |offset_y|
 			cur_x = top_left_x + offset_x
 			cur_y = top_left_y + offset_y
-			puz[cur_y][cur_x] = puz[cur_y][cur_x]&(~val) unless (cur_y == y && cur_x == x)
-			if puz[cur_y][cur_x] == 0
-				puts "ERROR!!!! ILLEGAL BOARD syncing block at #{cur_x},#{cur_y}"
-				panic(puz)
+			if cur_x != x && cur_y != y
+				new = puz[cur_y][cur_x]&(~val)
+				if new != puz[cur_y][cur_x]
+					puz[cur_y][cur_x] = new
+					if puz[cur_y][cur_x] == 0
+						puts "ERROR!!!! ILLEGAL BOARD syncing block at #{cur_x},#{cur_y}"
+						panic(puz)
+					else
+						if Math.log2(new).floor == Math.log2(new)
+							place_val(puz,cur_x,cur_y,new)
+						end
+					end
+				end
 			end
 		end
 	end
@@ -95,10 +123,12 @@ def place_val(puz,x,y,val)
 		puts "ERROR INVALID PUZZLE: #{val} being placed at (#{x},#{y}) which is #{puz[y][x]}"
 		panic(puzzle)
 	end
-	puz[y][x] = val
-	set_row(puz,x,y,val)
-	set_col(puz,x,y,val)
-	set_section(puz,x,y,val)
+	if puz[y][x] != val
+		puz[y][x] = val
+		set_row(puz,x,y,val)
+		set_col(puz,x,y,val)
+		set_section(puz,x,y,val)
+	end
 end
 
 y = 0
@@ -124,3 +154,4 @@ solve_under_specified_puzz(puzzle)
 
 
 print_puzz(puzzle)
+
