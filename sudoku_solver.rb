@@ -18,7 +18,7 @@ puts "total of #{puzzle.length} rows"
 def print_puzz(puzz)
 	puzz.each do |row|
 		row.each do |tile|
-			print tile
+			print "#{Math.log2(tile)} "
 		end
 		puts ""
 	end
