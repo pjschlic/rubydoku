@@ -28,7 +28,7 @@ end
 def print_puzz(puzz)
 	puzz.each do |row|
 		row.each do |tile|
-			print "#{Math.log2(tile)} "
+			print "#{Math.log2(tile).to_i + 1} "
 		end
 		puts ""
 	end
@@ -57,13 +57,15 @@ def set_row(puz, x, y, val)
 			old = puz[y][cur_x]
 			new = old&(~val)
 			if new != puz[y][cur_x] # if new assignment
-				puz[y][cur_x] = new
-				if puz[y][cur_x] == 0
-					puts "ERROR!!!! ILLEGAL BOARD syncing row at #{cur_x},#{y}"
+				if new == 0
+					puts "ERROR!!!! ILLEGAL BOARD syncing row at #{cur_x},#{y} | was #{old}"
 					panic(puz)
 				else
 					if Math.log2(new).floor == Math.log2(new) # if found final value, propagate
+						puts "propogate #{new} at (#{cur_x},#{y})"
 						place_val(puz,cur_x,y,new)
+					else
+						puz[y][cur_x] = new
 					end
 				end
 			end
@@ -75,15 +77,18 @@ end
 def set_col(puz, x, y, val)
 	(0..8).each do |cur_y|
 		if cur_y != y
+			old = puz[cur_y][x]
 			new = puz[cur_y][x]&(~val)
 			if new != puz[cur_y][x]
-				puz[cur_y][x] = new
-				if puz[cur_y][x] == 0
-					puts "ERROR!!!! ILLEGAL BOARD syncing column at #{x},#{cur_y}"
+				if new == 0
+					puts "ERROR!!!! ILLEGAL BOARD syncing column at #{x},#{cur_y} | was #{old}"
 					panic(puz)
 				else
 					if Math.log2(new).floor == Math.log2(new)
+						puts "propogate #{new} at (#{x},#{cur_y})"
 						place_val(puz,x,cur_y,new)
+					else
+						puz[cur_y][x] = new
 					end
 				end
 			end
@@ -102,13 +107,15 @@ def set_section(puz, x, y, val)
 			if cur_x != x && cur_y != y
 				new = puz[cur_y][cur_x]&(~val)
 				if new != puz[cur_y][cur_x]
-					puz[cur_y][cur_x] = new
-					if puz[cur_y][cur_x] == 0
+					if new == 0
 						puts "ERROR!!!! ILLEGAL BOARD syncing block at #{cur_x},#{cur_y}"
 						panic(puz)
 					else
 						if Math.log2(new).floor == Math.log2(new)
+							puts "propogate #{new} at (#{cur_x},#{cur_y})"
 							place_val(puz,cur_x,cur_y,new)
+						else
+							puz[cur_y][cur_x] = new
 						end
 					end
 				end
